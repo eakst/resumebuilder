@@ -72,7 +72,7 @@ def generate_customized_documents(job_analysis, resume_analysis):
     resume_prompt = (
         f"Based on the job analysis: {job_analysis},\n"
         f"and resume analysis: {resume_analysis},\n"
-        f"generate a customized resume for this job, make it sounds like I am the perfect match. Format it professionally."
+        f"I am re-writing my resume and I need your help. You are going to act as a professional resume writer skilled in presenting information concisely and using niche-appropriate language, while avoiding redundancy and cliché terms. Your task is to position my experience as a solution to my target companys pain points, tailoring it specifically so that its clear that I can manage the primary requirements of the job. I want you to memorize these instructions for the duration of our session. generate a customized resume for this job, make it sounds like I am the perfect match. Format it professionally."
     )
     resume_response = client.chat.completions.create(
         model="gpt-4",
