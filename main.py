@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 import os
+import asyncio
+from playwright.async_api import async_playwright
 
 # Load environment variables
 load_dotenv()
@@ -18,39 +20,36 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 # Define functions for crawling and analysis
-def analyze_job_requirements(job_url):
+async def analyze_job_requirements(job_url):
     try:
-        # Use a custom header to reduce the chance of being blocked
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
-            )
-        }
-        
-        # Fetch the webpage
-        response = requests.get(job_url, headers=headers)
-        
-        # Debug: Print status code and the length of the response text
-        print(f"Status code: {response.status_code}")
-        print(f"Content length: {len(response.text)} characters")
-        
-        # Raise an HTTPError if the response status is 4xx/5xx
-        response.raise_for_status()
-        
-        # Parse the HTML content
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Extract all textual content from the page
-        job_description = soup.get_text(separator='\n', strip=True)
-        
-        # Debug: Print (part of) the extracted text
-        print("Extracted text (first 500 characters):")
-        print(job_description[:500])  # Show only the first 500 characters for brevity
-        
-        return job_description
+        # Initialize Playwright
+        async with async_playwright() as p:
+            # Launch a headless browser
+            browser = await p.chromium.launch(headless=True)
+            # Create a new page
+            page = await browser.new_page()
 
-    except requests.RequestException as e:
+            # Navigate to the job URL and wait for DOM content to load
+            print("Navigating to Job URL...")
+            await page.goto(job_url, wait_until="domcontentloaded", timeout=60000)
+
+            # Optional: Wait for a specific selector to ensure the page is fully loaded
+            await asyncio.sleep(5)
+            await page.wait_for_selector("body", timeout=10000)
+
+            # Extract the text content of the page
+            job_description = await page.evaluate("document.body.innerText")
+
+            # Debug: Print the first 500 characters of the extracted text
+            print("Extracted Text (First 500 characters):")
+            print(job_description[:500])
+
+            # Close the browser
+            await browser.close()
+
+            return job_description
+
+    except Exception as e:
         # Print the error for debugging
         print(f"An error occurred while fetching the job description: {e}")
         return None
@@ -115,7 +114,7 @@ if "job_description" not in st.session_state:
 if st.button("Extract Job Description", key="extract_button"):
     if job_url:
         with st.spinner("Extracting job description..."):
-            job_description = analyze_job_requirements(job_url)
+            job_description = asyncio.run(analyze_job_requirements(job_url))
             if job_description:
                 st.session_state.job_description = job_description
                 st.success("Job description extracted successfully!")
