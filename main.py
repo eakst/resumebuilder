@@ -9,6 +9,9 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 
+os.system('playwright install')
+os.system('playwright install-deps')
+
 # Load environment variables
 load_dotenv()
 
