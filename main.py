@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 import os
+from langchain_community.document_loaders import ScrapingAntLoader
+
 
 # Load environment variables
 load_dotenv()
@@ -20,37 +22,36 @@ client = OpenAI(api_key=api_key)
 # Define functions for crawling and analysis
 def analyze_job_requirements(job_url):
     try:
-        # Use a custom header to reduce the chance of being blocked
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
-            )
-        }
+        # Get the API key from the environment variables
+        api_key = os.getenv("SCRAPINGANT_API_KEY")
         
-        # Fetch the webpage
-        response = requests.get(job_url, headers=headers)
-        
-        # Debug: Print status code and the length of the response text
-        print(f"Status code: {response.status_code}")
-        print(f"Content length: {len(response.text)} characters")
-        
-        # Raise an HTTPError if the response status is 4xx/5xx
-        response.raise_for_status()
-        
-        # Parse the HTML content
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Extract all textual content from the page
-        job_description = soup.get_text(separator='\n', strip=True)
-        
-        # Debug: Print (part of) the extracted text
-        print("Extracted text (first 500 characters):")
-        print(job_description[:500])  # Show only the first 500 characters for brevity
-        
-        return job_description
+        if not api_key:
+            raise ValueError("API key not found. Please set SCRAPINGANT_API_KEY in your .env file.")
 
-    except requests.RequestException as e:
+        # Initialize ScrapingAntLoader for the job URL
+        scrapingant_loader = ScrapingAntLoader(
+            [job_url],
+            api_key=api_key,
+            continue_on_failure=True  # Continue even if some URLs fail
+        )
+
+        # Load the document
+        documents = scrapingant_loader.load()
+
+        # Extract content from the document
+        if documents:
+            job_description = documents[0].page_content
+
+            # Debug: Print the first 500 characters of the extracted content
+            #print("Extracted text (first 500 characters):")
+            #print(job_description[:500])  # Show only the first 500 characters for brevity
+            
+            return job_description
+        else:
+            print("No content extracted.")
+            return None
+
+    except Exception as e:
         # Print the error for debugging
         print(f"An error occurred while fetching the job description: {e}")
         return None
