@@ -6,8 +6,7 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 import os
-import asyncio
-from playwright.async_api import async_playwright
+from langchain_community.document_loaders import FireCrawlLoader
 
 # Load environment variables
 load_dotenv()
@@ -20,58 +19,40 @@ if not api_key:
 client = OpenAI(api_key=api_key)
 
 # Define functions for crawling and analysis
-
-
-async def fetch_job_description_with_playwright(job_url):
-    """
-    Fetch and render job description using Playwright.
-
-    Args:
-        job_url (str): URL of the job listing page.
-
-    Returns:
-        str: Extracted job description text, or None if an error occurs.
-    """
+def analyze_job_requirements(job_url):
     try:
-        async with async_playwright() as p:
-            # Launch a headless browser
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
+        # Get the API key from environment variables
+        api_key = os.getenv("FIRECRAWL_API_KEY")
+        if not api_key:
+            raise ValueError("API key not found. Please set FIRECRAWL_API_KEY in your environment.")
 
-            # Navigate to the job URL
-            await page.goto(job_url)
+        # Initialize FireCrawlLoader for the job URL
+        loader = FireCrawlLoader(
+            url=job_url,
+            api_key=api_key,
+            mode="scrape",  # Use "scrape" for single page extraction
+        )
 
-            # Wait for the page to load completely (adjust selector for specific content)
-            await page.wait_for_load_state('networkidle')
+        # Load the document
+        documents = loader.load()
 
-            # Extract all textual content from the page
-            job_description = await page.content()
+        # Extract content from the document
+        if documents:
+            job_description = documents[0].page_content
 
             # Debug: Print the first 500 characters of the extracted content
             print("Extracted text (first 500 characters):")
             print(job_description[:500])  # Show only the first 500 characters for brevity
 
-            # Close the browser
-            await browser.close()
-
             return job_description
+        else:
+            print("No content extracted.")
+            return None
 
     except Exception as e:
+        # Print the error for debugging
         print(f"An error occurred while fetching the job description: {e}")
         return None
-
-def analyze_job_requirements(job_url):
-    """
-    Wrapper function to run the async Playwright function in Streamlit.
-
-    Args:
-        job_url (str): URL of the job listing page.
-
-    Returns:
-        str: Extracted job description text, or None if an error occurs.
-    """
-    return asyncio.run(fetch_job_description_with_playwright(job_url))
-
 
 def analyze_resume(uploaded_file):
     if uploaded_file.type == "application/pdf":
