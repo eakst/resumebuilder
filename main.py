@@ -6,7 +6,9 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 import os
-from langchain_community.document_loaders import ScrapingAntLoader
+#from langchain_community.document_loaders import ScrapingAntLoader
+from playwright.sync_api import sync_playwright
+
 
 
 # Load environment variables
@@ -21,41 +23,44 @@ client = OpenAI(api_key=api_key)
 
 # Define functions for crawling and analysis
 def analyze_job_requirements(job_url):
+    """
+    Analyze job requirements using Playwright for JavaScript-rendered content.
+
+    Args:
+        job_url (str): URL of the job listing page.
+
+    Returns:
+        str: Extracted job description text, or None if an error occurs.
+    """
     try:
-        # Get the API key from the environment variables
-        api_key = os.getenv("SCRAPINGANT_API_KEY")
-        
-        if not api_key:
-            raise ValueError("API key not found. Please set SCRAPINGANT_API_KEY in your .env file.")
+        # Initialize Playwright
+        with sync_playwright() as p:
+            # Launch a headless browser
+            browser = p.chromium.launch(headless=True)  # Set headless=False for debugging
+            page = browser.new_page()
 
-        # Initialize ScrapingAntLoader for the job URL
-        scrapingant_loader = ScrapingAntLoader(
-            [job_url],
-            api_key=api_key,
-            continue_on_failure=True  # Continue even if some URLs fail
-        )
+            # Navigate to the job URL
+            page.goto(job_url)
 
-        # Load the document
-        documents = scrapingant_loader.load()
+            # Wait for the page to fully load (adjust the selector to the content you're waiting for)
+            page.wait_for_selector("body")  # General selector for when the content is loaded
 
-        # Extract content from the document
-        if documents:
-            job_description = documents[0].page_content
+            # Extract all textual content from the page
+            job_description = page.content()
 
             # Debug: Print the first 500 characters of the extracted content
-            #print("Extracted text (first 500 characters):")
-            #print(job_description[:500])  # Show only the first 500 characters for brevity
-            
+            print("Extracted text (first 500 characters):")
+            print(job_description[:500])  # Show only the first 500 characters for brevity
+
+            # Close the browser
+            browser.close()
+
             return job_description
-        else:
-            print("No content extracted.")
-            return None
 
     except Exception as e:
         # Print the error for debugging
         print(f"An error occurred while fetching the job description: {e}")
         return None
-
 
 def analyze_resume(uploaded_file):
     if uploaded_file.type == "application/pdf":
