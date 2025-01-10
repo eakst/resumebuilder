@@ -6,11 +6,6 @@ from bs4 import BeautifulSoup
 import requests
 from dotenv import load_dotenv
 import os
-#from langchain_community.document_loaders import ScrapingAntLoader
-#from playwright.sync_api import sync_playwright
-from requests_html import HTMLSession
-import asyncio
-from requests_html import AsyncHTMLSession
 import asyncio
 from playwright.async_api import async_playwright
 
