@@ -20,39 +20,62 @@ client = OpenAI(api_key=api_key)
 
 # Define functions for crawling and analysis
 def analyze_job_requirements(job_url):
+    """
+    Extracts and summarizes the job posting content from a given URL.
+
+    Args:
+        job_url: The URL of the job posting.
+
+    Returns:
+        The summarized job posting content, or None if an error occurs.
+    """
     try:
-        # Get the API key from environment variables
-        api_key = os.getenv("FIRECRAWL_API_KEY")
-        if not api_key:
-            raise ValueError("API key not found. Please set FIRECRAWL_API_KEY in your environment.")
+        # Fetch the webpage content
+        response = requests.get(job_url)
+        response.raise_for_status()
 
-        # Initialize FireCrawlLoader for the job URL
-        loader = FireCrawlLoader(
-            url=job_url,
-            api_key=api_key,
-            mode="scrape",  # Use "scrape" for single page extraction
-        )
+        # Parse the HTML content
+        soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Load the document
-        documents = loader.load()
+        # Strategy 1: Target the main content area
+        content_element = soup.find('div', class_='main-content-area')  # Example class name
+        if not content_element:
+            content_element = soup.find('article', class_='job-posting')  # Another example
 
-        # Extract content from the document
-        if documents:
-            job_description = documents[0].page_content
+        # Strategy 2: Fallback to body text
+        if not content_element:
+            content_element = soup.find('body')
 
-            # Debug: Print the first 500 characters of the extracted content
-            print("Extracted text (first 500 characters):")
-            print(job_description[:500])  # Show only the first 500 characters for brevity
+        if content_element:
+            # Extract the text content
+            job_description = content_element.get_text(separator='\n', strip=True)
 
-            return job_description
+            # Summarize using OpenAI
+            prompt = (
+                f"Job Description: {job_description}\n\n"
+                "Summarize the company, job role, top requirements, highlights, "
+                "and provide recommendations for creating a winning resume tailored to this job."
+            )
+            summary_response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert in job market analysis and resume writing."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            summary = summary_response.choices[0].message.content
+            return summary
         else:
-            print("No content extracted.")
+            print(f"Could not find job posting content on {job_url}")
             return None
 
-    except Exception as e:
-        # Print the error for debugging
-        print(f"An error occurred while fetching the job description: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL: {e}")
         return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
 
 def analyze_resume(uploaded_file):
     if uploaded_file.type == "application/pdf":
